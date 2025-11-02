@@ -17,10 +17,10 @@ Deploy this repo directly on Streamlit Community Cloud.
 
 ## Project layout (planned)
 - app/
-- Home.py
-- data_fetch.py
-- eda.py
-- stationarity.py
-- modeling.py
-- evaluate.py
+  - Home.py
+  - data_fetch.py
+  - eda.py
+  - stationarity.py
+  - modeling.py
+  - evaluate.py
 - requirements.txt

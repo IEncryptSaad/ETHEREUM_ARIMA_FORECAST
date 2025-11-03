@@ -58,7 +58,13 @@ st.line_chart(df.set_index("open_time")["close"], height=360)
 
 with st.expander("Show raw OHLC data"):
     st.dataframe(df.tail(50), use_container_width=True)
-    from stationarity import run_stationarity_app
+
+# ---- Analysis Sections
+from stationarity import run_stationarity_app
+from modeling import run_arima_app
+
 st.markdown("---")
 run_stationarity_app(df)
 
+st.markdown("---")
+run_arima_app(df)

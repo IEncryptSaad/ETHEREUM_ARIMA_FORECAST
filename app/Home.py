@@ -3,9 +3,9 @@ import streamlit as st
 import pandas as pd
 from datetime import timedelta
 ...
-def _fetch(return get_eth_ohlcv(interval=interval, limit=limit)
-)
-
+@st.cache_data(ttl=300, show_spinner=False)
+def _fetch(interval: str, limit: int):
+    return get_eth_ohlcv(interval=interval, limit=limit)
 st.caption("Live data via Binance public API (no key). Choose interval & history, then explore the chart.")
 
 # ---- Controls

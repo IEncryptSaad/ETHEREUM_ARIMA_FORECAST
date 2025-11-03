@@ -1,33 +1,80 @@
+import math
 import pandas as pd
 import requests
-from datetime import datetime
 
-# Fetch ETH/USDT historical price data from Binance public API
-def get_binance_data(symbol="ETHUSDT", interval="1h", limit=500):
-    """
-    Fetch OHLCV (Open, High, Low, Close, Volume) data for the given symbol.
-    interval: '1h', '4h', '1d', etc.
-    limit: number of candles (max 1000 per request)
-    """
-    url = f"https://api.binance.com/api/v3/klines"
+BINANCE_URL = "https://api.binance.com/api/v3/klines"
+COINGECKO_OHLC_URL = "https://api.coingecko.com/api/v3/coins/ethereum/ohlc"
+
+class DataFetchError(Exception):
+    pass
+
+def _binance_ohlcv(symbol="ETHUSDT", interval="1h", limit=500) -> pd.DataFrame:
     params = {"symbol": symbol, "interval": interval, "limit": limit}
-    response = requests.get(url, params=params, timeout=10)
-    response.raise_for_status()
-
-    data = response.json()
+    r = requests.get(BINANCE_URL, params=params, timeout=12)
+    r.raise_for_status()
+    data = r.json()
     df = pd.DataFrame(
         data,
         columns=[
-            "open_time", "open", "high", "low", "close", "volume",
-            "close_time", "quote_asset_volume", "num_trades",
-            "taker_buy_base", "taker_buy_quote", "ignore"
+            "open_time","open","high","low","close","volume",
+            "close_time","quote_asset_volume","num_trades",
+            "taker_buy_base","taker_buy_quote","ignore",
         ],
     )
-
-    # Convert to proper datatypes
     df["open_time"] = pd.to_datetime(df["open_time"], unit="ms")
-    df["close_time"] = pd.to_datetime(df["close_time"], unit="ms")
-    numeric_cols = ["open", "high", "low", "close", "volume"]
-    df[numeric_cols] = df[numeric_cols].astype(float)
+    for c in ["open","high","low","close","volume"]:
+        df[c] = df[c].astype(float)
+    return df[["open_time","open","high","low","close","volume"]]
 
-    return df[["open_time", "open", "high", "low", "close", "volume"]]
+def _round_days_allowed(days_required: int) -> int:
+    # CoinGecko only accepts: 1, 7, 14, 30, 90, 180, 365, "max"
+    allowed = [1, 7, 14, 30, 90, 180, 365]
+    for d in allowed:
+        if days_required <= d:
+            return d
+    return 365
+
+def _coingecko_ohlc(interval: str, candles: int) -> pd.DataFrame:
+    # Map requested candles/interval to an approximate number of days
+    if interval == "1h":
+        days_needed = math.ceil(candles / 24)
+    elif interval == "4h":
+        days_needed = math.ceil(candles / 6)
+    else:  # "1d"
+        days_needed = max(1, candles)
+
+    days = _round_days_allowed(days_needed)
+    params = {"vs_currency": "usd", "days": days}
+    r = requests.get(COINGECKO_OHLC_URL, params=params, timeout=12)
+    r.raise_for_status()
+    # Response rows: [timestamp(ms), open, high, low, close]
+    rows = r.json()
+    if not rows:
+        raise DataFetchError("CoinGecko returned no data")
+    df = pd.DataFrame(rows, columns=["ts","open","high","low","close"])
+    df["open_time"] = pd.to_datetime(df["ts"], unit="ms")
+    for c in ["open","high","low","close"]:
+        df[c] = df[c].astype(float)
+    # CoinGecko doesn't include volume in this endpoint
+    df["volume"] = pd.NA
+    return df[["open_time","open","high","low","close","volume"]]
+
+def get_eth_ohlcv(interval="1h", limit=500) -> pd.DataFrame:
+    """
+    Try Binance first. If blocked (HTTP 451/403) or any error occurs,
+    fall back to CoinGecko OHLC. Returns a DataFrame with columns:
+    open_time, open, high, low, close, volume (volume may be NA for fallback).
+    """
+    try:
+        return _binance_ohlcv(symbol="ETHUSDT", interval=interval, limit=limit)
+    except requests.HTTPError as e:
+        status = e.response.status_code
+        if status in (451, 403):
+            # Legal block / forbidden → use CoinGecko
+            return _coingecko_ohlc(interval, limit)
+        # Other HTTP error → still try CoinGecko as a graceful fallback
+        return _coingecko_ohlc(interval, limit)
+    except Exception:
+        # Network/parse errors → fallback
+        return _coingecko_ohlc(interval, limit)
+

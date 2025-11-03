@@ -24,3 +24,6 @@ Deploy this repo directly on Streamlit Community Cloud.
   - modeling.py
   - evaluate.py
 - requirements.txt
+- .gitignore
+- .streamlit/
+  - config.toml

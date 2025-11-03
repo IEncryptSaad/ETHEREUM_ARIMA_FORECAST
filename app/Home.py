@@ -4,6 +4,10 @@ import pandas as pd
 
 st.set_page_config(page_title="ETH/USDT ARIMA", layout="wide")
 st.title("ETH/USDT ARIMA – Cloud App")
+st.markdown(
+    "> **Project:** Ethereum (ETH/USDT) ARIMA Forecasting — Cloud Deployed  \n"
+    "> **Built by:** Saad Bin Masud (ML Internship Project 01 – Arch Technologies)"
+)
 st.caption(
     "Live data via Binance (auto-fallback to CoinGecko when blocked). "
     "Choose interval & history, then explore the chart."
